@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { ArrowLeft, Plus, Trash2, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react';
 
 interface PageEditorProps {
   page: any | null;
@@ -16,6 +16,7 @@ const COMPONENT_TYPES = [
 const LAYOUT_TYPES = ['scroll', 'stack', 'grid', 'tabs'];
 
 export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) {
+  const [showDropdown, setShowDropdown] = useState(false);
   const [form, setForm] = useState({
     name: page?.name || '',
     slug: page?.slug || '',
@@ -160,21 +161,42 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-900">Components</h3>
-          <div className="relative group">
-            <button className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 text-sm transition-colors">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3.5 py-1.5 rounded-lg hover:bg-blue-100 text-sm font-medium transition-colors"
+            >
               <Plus size={16} /> Add Component
+              <ChevronDown size={14} className={`transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
-            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 hidden group-hover:block">
-              {COMPONENT_TYPES.map(type => (
-                <button
-                  key={type}
-                  onClick={() => addComponent(type)}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+            {showDropdown && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowDropdown(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-20 max-h-80 overflow-y-auto">
+                  <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                    Select Component
+                  </div>
+                  {COMPONENT_TYPES.map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        addComponent(type);
+                        setShowDropdown(false);
+                      }}
+                      className="flex items-center justify-between w-full text-left px-3.5 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                    >
+                      <span className="capitalize">{type}</span>
+                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono uppercase">UI</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
