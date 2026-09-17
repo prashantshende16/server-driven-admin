@@ -92,9 +92,130 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
     setJsonCode(JSON.stringify(updated, null, 2));
   };
 
+  // Convert React Native code (JSX or data arrays) into Server-Driven Components
+  const convertReactNativeToComponents = (input: string): any[] => {
+    const newComponents: any[] = [];
+
+    // 1. Extract Top Title / Headings
+    const titleMatch = input.match(/headerTitle[\s\S]*?>\s*([^<]+)\s*<\/Text>/i) ||
+                       input.match(/<Text[^>]*>(Event[s]?)<\/Text>/i);
+    const subtitleMatch = input.match(/headerSubtitle[\s\S]*?>\s*([^<]+)\s*<\/Text>/i);
+    if (titleMatch) {
+      newComponents.push({
+        id: `heading_${Date.now()}_1`,
+        type: 'heading',
+        order: newComponents.length + 1,
+        props: {
+          text: titleMatch[1].trim(),
+          subtitle: subtitleMatch ? subtitleMatch[1].trim() : undefined,
+          size: 'large',
+        },
+        visibility: { visible: true },
+      });
+    }
+
+    // 2. Extract Banners
+    const bannerTitleMatch = input.match(/bannerTitle[\s\S]*?>\s*([^<]+)\s*<\/Text>/i) ||
+                             input.match(/['"](Today event)['"]/i);
+    const bannerSubMatch = input.match(/bannerSubtitle[\s\S]*?>\s*([^<]+)\s*<\/Text>/i);
+    const bannerImgMatch = input.match(/bannerBackground[\s\S]*?uri:\s*['"]([^'"]+)['"]/i) ||
+                           input.match(/https:\/\/images\.unsplash\.com\/photo-[0-9a-zA-Z\-_?=&;]+/i);
+    if (bannerTitleMatch || bannerImgMatch) {
+      newComponents.push({
+        id: `banner_${Date.now()}_2`,
+        type: 'banner',
+        order: newComponents.length + 1,
+        props: {
+          title: bannerTitleMatch ? (typeof bannerTitleMatch === 'string' ? bannerTitleMatch : bannerTitleMatch[1] || 'Today event') : 'Today event',
+          subtitle: bannerSubMatch ? bannerSubMatch[1].trim() : 'Global Electronic Beats Festival • Live at Grand Arena',
+          image: bannerImgMatch ? (typeof bannerImgMatch === 'string' ? bannerImgMatch : bannerImgMatch[1] || bannerImgMatch[0]) : '',
+        },
+        visibility: { visible: true },
+      });
+    }
+
+    // 3. Extract Section Headers
+    const sectionTitleMatch = input.match(/sectionTitle[\s\S]*?>\s*([^<]+)\s*<\/Text>/i) ||
+                              input.match(/<Text[^>]*>(Event list)<\/Text>/i);
+    if (sectionTitleMatch) {
+      newComponents.push({
+        id: `heading_${Date.now()}_3`,
+        type: 'heading',
+        order: newComponents.length + 1,
+        props: { text: sectionTitleMatch[1].trim(), size: 'medium' },
+        visibility: { visible: true },
+      });
+    }
+
+    // 4. Extract data array like const EVENTS_DATA = [...]
+    const arrayMatch = input.match(/const\s+[A-Za-z0-9_]+\s*=\s*(\[[\s\S]*?\]);/);
+    if (arrayMatch) {
+      try {
+        const items = new Function("return " + arrayMatch[1])();
+        if (Array.isArray(items)) {
+          items.forEach((item: any, idx: number) => {
+            newComponents.push({
+              id: `card_${item.id || idx + 1}_${Date.now()}`,
+              type: 'card',
+              order: newComponents.length + 1,
+              props: {
+                title: item.title || item.name || 'Event Item',
+                subtitle: `${item.category || ''} ${item.price ? '• ' + item.price : ''}`.trim(),
+                description: `${item.date || ''} ${item.time ? '• ' + item.time : ''} ${item.location ? '• ' + item.location : ''}`.trim(),
+                image: item.image || '',
+              },
+              visibility: { visible: true },
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Could not auto-parse array:', err);
+      }
+    }
+
+    // 5. Fallback generic text tags if nothing matched above
+    if (newComponents.length === 0) {
+      const textMatches = input.matchAll(/<Text[^>]*>(.*?)<\/Text>/gs);
+      for (const match of textMatches) {
+        const txt = match[1].replace(/<[^>]*>/g, '').trim();
+        if (txt && !txt.includes('{')) {
+          newComponents.push({
+            id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            type: 'text',
+            order: newComponents.length + 1,
+            props: { text: txt },
+            visibility: { visible: true },
+          });
+        }
+      }
+    }
+
+    return newComponents.map((c, i) => ({ ...c, order: i + 1 }));
+  };
+
   // Handle raw code input in Code Mode
   const handleCodeChange = (text: string) => {
     setJsonCode(text);
+
+    // Auto-detect if user pasted React Native JavaScript code
+    const isReactNative =
+      text.includes('import ') ||
+      text.includes('export default') ||
+      text.includes('StyleSheet.create') ||
+      text.includes('const EVENTS_DATA') ||
+      text.includes('<FlatList');
+
+    if (isReactNative) {
+      const converted = convertReactNativeToComponents(text);
+      if (converted.length > 0) {
+        const formatted = JSON.stringify(converted, null, 2);
+        setJsonCode(formatted);
+        updateField('components', converted);
+        setJsonError(null);
+        return;
+      }
+    }
+
     try {
       const parsed = JSON.parse(text);
       if (Array.isArray(parsed)) {
@@ -134,111 +255,16 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Convert React Native code (JSX or data arrays) into Server-Driven Components
   const convertJsxSnippet = () => {
     const input = prompt('Paste your React Native code or component snippet:');
     if (!input || !input.trim()) return;
-
-    const newComponents: any[] = [];
-
-    // 1. Extract Top Title / Headings
-    const headingMatches = input.matchAll(/<Text[^>]*style=\{styles\.headerTitle\}[^>]*>(.*?)<\/Text>/gs);
-    for (const match of headingMatches) {
-      newComponents.push({
-        id: `heading_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        type: 'heading',
-        order: newComponents.length + 1,
-        props: { text: match[1].trim(), size: 'large' },
-        visibility: { visible: true },
-      });
-    }
-
-    // 2. Extract Banners
-    const bannerTitleMatch = input.match(/styles\.bannerTitle\}>([^<]+)<\/Text>/);
-    const bannerSubMatch = input.match(/styles\.bannerSubtitle\}>([^<]+)<\/Text>/);
-    const bannerImgMatch = input.match(/bannerBackground[\s\S]*?uri:\s*['"]([^'"]+)['"]/);
-    if (bannerTitleMatch || bannerImgMatch) {
-      newComponents.push({
-        id: `banner_${Date.now()}`,
-        type: 'banner',
-        order: newComponents.length + 1,
-        props: {
-          title: bannerTitleMatch ? bannerTitleMatch[1].trim() : 'Banner',
-          subtitle: bannerSubMatch ? bannerSubMatch[1].trim() : '',
-          image: bannerImgMatch ? bannerImgMatch[1].trim() : '',
-        },
-        visibility: { visible: true },
-      });
-    }
-
-    // 3. Extract Section Headers
-    const sectionTitleMatch = input.match(/styles\.sectionTitle\}>([^<]+)<\/Text>/);
-    if (sectionTitleMatch) {
-      newComponents.push({
-        id: `section_${Date.now()}`,
-        type: 'heading',
-        order: newComponents.length + 1,
-        props: { text: sectionTitleMatch[1].trim(), size: 'medium' },
-        visibility: { visible: true },
-      });
-    }
-
-    // 4. Extract data array like const EVENTS_DATA = [...]
-    const arrayMatch = input.match(/const\s+[A-Za-z0-9_]+\s*=\s*(\[[\s\S]*?\]);/);
-    if (arrayMatch) {
-      try {
-        // Convert JS object literals to valid JSON
-        const sanitizedJson = arrayMatch[1]
-          .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
-          .replace(/'/g, '"')
-          .replace(/,\s*([\]}])/g, '$1');
-        const items = JSON.parse(sanitizedJson);
-        if (Array.isArray(items)) {
-          items.forEach((item: any) => {
-            newComponents.push({
-              id: `card_${item.id || Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-              type: 'card',
-              order: newComponents.length + 1,
-              props: {
-                title: item.title || item.name || 'Card',
-                subtitle: `${item.category || ''} ${item.price ? '• ' + item.price : ''}`.trim(),
-                description: `${item.date || ''} ${item.time ? '• ' + item.time : ''} ${item.location ? '• ' + item.location : ''}`.trim(),
-                image: item.image || '',
-              },
-              visibility: { visible: true },
-            });
-          });
-        }
-      } catch (err) {
-        console.warn('Could not auto-parse array:', err);
-      }
-    }
-
-    // 5. Fallback generic text tags if nothing matched above
-    if (newComponents.length === 0) {
-      const textMatches = input.matchAll(/<Text[^>]*>(.*?)<\/Text>/gs);
-      for (const match of textMatches) {
-        const txt = match[1].replace(/<[^>]*>/g, '').trim();
-        if (txt && !txt.includes('{')) {
-          newComponents.push({
-            id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            type: 'text',
-            order: newComponents.length + 1,
-            props: { text: txt },
-            visibility: { visible: true },
-          });
-        }
-      }
-    }
-
-    if (newComponents.length > 0) {
-      // Re-index orders
-      const finalComponents = newComponents.map((c, i) => ({ ...c, order: i + 1 }));
-      updateField('components', finalComponents);
-      setJsonCode(JSON.stringify(finalComponents, null, 2));
-      alert(`🎉 Successfully converted React Native code into ${finalComponents.length} FlowForge components!`);
+    const converted = convertReactNativeToComponents(input);
+    if (converted.length > 0) {
+      updateField('components', converted);
+      setJsonCode(JSON.stringify(converted, null, 2));
+      alert(`🎉 Successfully converted React Native code into ${converted.length} FlowForge components!`);
     } else {
-      alert('Could not auto-parse React Native code. Please paste the JSON format directly into the Code Editor.');
+      alert('Could not auto-parse React Native code. Please paste valid JSON directly into the Code Editor.');
     }
   };
 
