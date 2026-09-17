@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Wand2,
   Sparkles,
+  X,
 } from 'lucide-react';
 
 interface PageEditorProps {
@@ -33,6 +34,8 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [rawJsxInput, setRawJsxInput] = useState('');
 
   const [form, setForm] = useState({
     name: page?.name || '',
@@ -255,16 +258,21 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const convertJsxSnippet = () => {
-    const input = prompt('Paste your React Native code or component snippet:');
-    if (!input || !input.trim()) return;
-    const converted = convertReactNativeToComponents(input);
+  const handleImportFromModal = () => {
+    if (!rawJsxInput || !rawJsxInput.trim()) {
+      alert('Please paste your React Native code first.');
+      return;
+    }
+    const converted = convertReactNativeToComponents(rawJsxInput);
     if (converted.length > 0) {
       updateField('components', converted);
       setJsonCode(JSON.stringify(converted, null, 2));
+      setShowImportModal(false);
+      setRawJsxInput('');
+      setJsonError(null);
       alert(`🎉 Successfully converted React Native code into ${converted.length} FlowForge components!`);
     } else {
-      alert('Could not auto-parse React Native code. Please paste valid JSON directly into the Code Editor.');
+      alert('Could not auto-parse React Native code. Ensure your code contains JSX tags or an array like const EVENTS_DATA = [...].');
     }
   };
 
@@ -603,23 +611,26 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={convertJsxSnippet}
-                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-yellow-300 px-2.5 py-1 rounded transition-colors"
-                  title="Paste React Native JSX (<Text>, <Image>, <Button>) to convert to components"
+                  onClick={() => {
+                    setRawJsxInput('');
+                    setShowImportModal(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 py-1 rounded transition-colors shadow-sm text-xs"
+                  title="Open code paste window"
                 >
-                  <Sparkles size={12} /> Import JSX
+                  <Sparkles size={13} /> Import React Native Code
                 </button>
                 <button
                   type="button"
                   onClick={formatJson}
-                  className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded transition-colors"
+                  className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded transition-colors text-xs"
                 >
                   <Wand2 size={12} /> Format
                 </button>
                 <button
                   type="button"
                   onClick={copyJson}
-                  className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded transition-colors"
+                  className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded transition-colors text-xs"
                 >
                   {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                   {copied ? 'Copied' : 'Copy'}
@@ -654,12 +665,73 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
 
             <div className="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs flex items-center justify-between">
               <span>
-                💡 <strong>Tip:</strong> You can copy and paste raw component arrays directly here. Any edits in this code editor immediately sync with the <strong>Visual Builder</strong> tab and will be saved to your page!
+                💡 <strong>Tip:</strong> You can click <strong>"Import React Native Code"</strong> to paste your raw React Native files, or paste raw JSON directly into the editor above.
               </span>
             </div>
           </div>
         )}
       </div>
+
+      {/* Full Modal for Pasting Raw React Native Code */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">Import React Native Code</h3>
+                  <p className="text-xs text-gray-500">
+                    Paste your entire React Native file (.tsx / .jsx) with arrays, headings, and banners.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 flex flex-col space-y-2">
+              <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                React Native Code Input:
+              </label>
+              <textarea
+                value={rawJsxInput}
+                onChange={e => setRawJsxInput(e.target.value)}
+                placeholder="Paste your code here (import React, const EVENTS_DATA = [...], renderListHeader, etc.)..."
+                className="w-full h-80 font-mono text-xs p-4 bg-gray-950 text-gray-100 rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed resize-none"
+                spellCheck={false}
+              />
+              <p className="text-xs text-gray-400">
+                Supports: <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">const EVENTS_DATA = [...]</code>, banners, headings, and card lists.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImportFromModal}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+              >
+                <Sparkles size={15} /> Convert & Import to Page
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
