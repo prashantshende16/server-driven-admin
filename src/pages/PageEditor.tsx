@@ -318,13 +318,25 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
             {page ? 'Modify existing components, layout, or copy-paste code directly.' : 'Configure page attributes and components.'}
           </p>
         </div>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium shadow-sm"
-        >
-          {saving ? 'Saving...' : 'Save Page'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setRawJsxInput('');
+              setShowImportModal(true);
+            }}
+            className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3.5 py-2 rounded-lg hover:bg-indigo-100 transition-colors font-medium text-sm shadow-sm"
+          >
+            <Sparkles size={16} className="text-indigo-600" /> Import React Native Code
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium shadow-sm"
+          >
+            {saving ? 'Saving...' : 'Save Page'}
+          </button>
+        </div>
       </div>
 
       {/* Page Metadata Section */}
@@ -675,7 +687,7 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
       {/* Full Modal for Pasting Raw React Native Code */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -688,16 +700,26 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowImportModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleImportFromModal}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+                >
+                  <Sparkles size={14} /> Convert & Import to Page
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg"
+                  title="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 flex flex-col space-y-2">
+            <div className="flex-1 flex flex-col space-y-2 overflow-y-auto">
               <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
                 React Native Code Input:
               </label>
@@ -705,7 +727,7 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
                 value={rawJsxInput}
                 onChange={e => setRawJsxInput(e.target.value)}
                 placeholder="Paste your code here (import React, const EVENTS_DATA = [...], renderListHeader, etc.)..."
-                className="w-full h-80 font-mono text-xs p-4 bg-gray-950 text-gray-100 rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed resize-none"
+                className="w-full flex-1 min-h-[300px] font-mono text-xs p-4 bg-gray-950 text-gray-100 rounded-xl border border-gray-800 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
                 spellCheck={false}
               />
               <p className="text-xs text-gray-400">
