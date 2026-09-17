@@ -134,52 +134,111 @@ export default function PageEditor({ page, onClose, onSaved }: PageEditorProps) 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Convert basic React Native JSX snippet into Server-Driven Components
+  // Convert React Native code (JSX or data arrays) into Server-Driven Components
   const convertJsxSnippet = () => {
-    const input = prompt('Paste React Native JSX code snippet (e.g. <Text>Hello</Text> or <Image source={{uri: "..."}} />):');
+    const input = prompt('Paste your React Native code or component snippet:');
     if (!input || !input.trim()) return;
 
     const newComponents: any[] = [];
-    const textMatches = input.matchAll(/<Text[^>]*>(.*?)<\/Text>/gs);
-    for (const match of textMatches) {
+
+    // 1. Extract Top Title / Headings
+    const headingMatches = input.matchAll(/<Text[^>]*style=\{styles\.headerTitle\}[^>]*>(.*?)<\/Text>/gs);
+    for (const match of headingMatches) {
       newComponents.push({
-        id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        type: 'text',
-        order: form.components.length + newComponents.length + 1,
-        props: { text: match[1].trim() },
+        id: `heading_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        type: 'heading',
+        order: newComponents.length + 1,
+        props: { text: match[1].trim(), size: 'large' },
         visibility: { visible: true },
       });
     }
 
-    const imageMatches = input.matchAll(/<Image[^>]*source=\{\{\s*uri:\s*["']([^"']+)["']\s*\}\}[^>]*\/>/gs);
-    for (const match of imageMatches) {
+    // 2. Extract Banners
+    const bannerTitleMatch = input.match(/styles\.bannerTitle\}>([^<]+)<\/Text>/);
+    const bannerSubMatch = input.match(/styles\.bannerSubtitle\}>([^<]+)<\/Text>/);
+    const bannerImgMatch = input.match(/bannerBackground[\s\S]*?uri:\s*['"]([^'"]+)['"]/);
+    if (bannerTitleMatch || bannerImgMatch) {
       newComponents.push({
-        id: `image_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        type: 'image',
-        order: form.components.length + newComponents.length + 1,
-        props: { src: match[1].trim() },
+        id: `banner_${Date.now()}`,
+        type: 'banner',
+        order: newComponents.length + 1,
+        props: {
+          title: bannerTitleMatch ? bannerTitleMatch[1].trim() : 'Banner',
+          subtitle: bannerSubMatch ? bannerSubMatch[1].trim() : '',
+          image: bannerImgMatch ? bannerImgMatch[1].trim() : '',
+        },
         visibility: { visible: true },
       });
     }
 
-    const buttonMatches = input.matchAll(/<Button[^>]*title=["']([^"']+)["'][^>]*\/>/gs);
-    for (const match of buttonMatches) {
+    // 3. Extract Section Headers
+    const sectionTitleMatch = input.match(/styles\.sectionTitle\}>([^<]+)<\/Text>/);
+    if (sectionTitleMatch) {
       newComponents.push({
-        id: `button_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        type: 'button',
-        order: form.components.length + newComponents.length + 1,
-        props: { label: match[1].trim() },
+        id: `section_${Date.now()}`,
+        type: 'heading',
+        order: newComponents.length + 1,
+        props: { text: sectionTitleMatch[1].trim(), size: 'medium' },
         visibility: { visible: true },
       });
+    }
+
+    // 4. Extract data array like const EVENTS_DATA = [...]
+    const arrayMatch = input.match(/const\s+[A-Za-z0-9_]+\s*=\s*(\[[\s\S]*?\]);/);
+    if (arrayMatch) {
+      try {
+        // Convert JS object literals to valid JSON
+        const sanitizedJson = arrayMatch[1]
+          .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+          .replace(/'/g, '"')
+          .replace(/,\s*([\]}])/g, '$1');
+        const items = JSON.parse(sanitizedJson);
+        if (Array.isArray(items)) {
+          items.forEach((item: any) => {
+            newComponents.push({
+              id: `card_${item.id || Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              type: 'card',
+              order: newComponents.length + 1,
+              props: {
+                title: item.title || item.name || 'Card',
+                subtitle: `${item.category || ''} ${item.price ? '• ' + item.price : ''}`.trim(),
+                description: `${item.date || ''} ${item.time ? '• ' + item.time : ''} ${item.location ? '• ' + item.location : ''}`.trim(),
+                image: item.image || '',
+              },
+              visibility: { visible: true },
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Could not auto-parse array:', err);
+      }
+    }
+
+    // 5. Fallback generic text tags if nothing matched above
+    if (newComponents.length === 0) {
+      const textMatches = input.matchAll(/<Text[^>]*>(.*?)<\/Text>/gs);
+      for (const match of textMatches) {
+        const txt = match[1].replace(/<[^>]*>/g, '').trim();
+        if (txt && !txt.includes('{')) {
+          newComponents.push({
+            id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            type: 'text',
+            order: newComponents.length + 1,
+            props: { text: txt },
+            visibility: { visible: true },
+          });
+        }
+      }
     }
 
     if (newComponents.length > 0) {
-      const merged = [...form.components, ...newComponents];
-      updateField('components', merged);
-      setJsonCode(JSON.stringify(merged, null, 2));
-      alert(`Successfully parsed and imported ${newComponents.length} components from JSX!`);
+      // Re-index orders
+      const finalComponents = newComponents.map((c, i) => ({ ...c, order: i + 1 }));
+      updateField('components', finalComponents);
+      setJsonCode(JSON.stringify(finalComponents, null, 2));
+      alert(`🎉 Successfully converted React Native code into ${finalComponents.length} FlowForge components!`);
     } else {
-      alert('Could not find supported JSX elements (<Text>, <Image>, <Button>). Try pasting standard JSON in the Code Editor instead.');
+      alert('Could not auto-parse React Native code. Please paste the JSON format directly into the Code Editor.');
     }
   };
 
